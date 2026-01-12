@@ -1,8 +1,24 @@
 import json
 import os
 import re
+from datetime import datetime
 
 import pdfplumber
+
+TITULOS_CORTE = [
+    "TRABAJOS EN EVENTOS C-T PUBLICADOS",
+    "PARTES DE LIBRO",
+    "LIBROS",
+]
+
+FINES_ARTICULO = [
+    r"p\.\s*\d+\s*-\s*\d+\.",
+    r"vol\.\s*\d+,\s*n°\s*\d+,?",
+    r"vol\.\s*\d+,?",
+]
+
+# Escapamos los títulos por seguridad
+titulos_regex = "|".join(re.escape(t) for t in TITULOS_CORTE)
 
 
 def extraer_texto_pdf(pdf_path):
@@ -34,8 +50,13 @@ def limpiar_texto(texto: str) -> str:
 
 def extraer_articulos(texto: str) -> list[str]:
     patron_bloque = re.compile(
-        r"ARTICULOS Total:\s*\d+.*?Publicado Total publicado:\s*\d+(.*?)TRABAJOS EN EVENTOS C-T PUBLICADOS",
-        re.DOTALL,
+        rf"""
+        ARTICULOS\ Total:\s*\d+.*?
+        Publicado\ Total\ publicado:\s*\d+
+        (.*?)
+        (?:{titulos_regex})
+        """,
+        re.DOTALL | re.VERBOSE,
     )
 
     match = patron_bloque.search(texto)
@@ -90,8 +111,11 @@ def extraer_articulos(texto: str) -> list[str]:
 def post_procesar_articulos(articulos: list[str]) -> list[str]:
     resultado = []
 
-    # p. 1-1.  / p. 26871-26892.
-    patron_fin = re.compile(r"(p\.\s*\d+\s*-\s*\d+\.)")
+    # p. 1-1.  / p. 26871-26892. / vol. 12, n° 3, / vol. 5,
+    patron_fin = re.compile(
+        "(" + "|".join(FINES_ARTICULO) + ")",
+        re.IGNORECASE,
+    )
 
     # Inicio claro de nuevo artículo: APELLIDO, NOMBRE o NOMBRE APELLIDO;
     patron_inicio = re.compile(r"\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\-]+,\s*[A-ZÁÉÍÓÚÑ]")
@@ -115,6 +139,7 @@ def post_procesar_articulos(articulos: list[str]) -> list[str]:
 
 
 def guardar_json(path: str, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -122,6 +147,7 @@ def guardar_json(path: str, data):
 def main():
     # extraer textos de los pdfs en memorias/
     # leer la carpeta memorias/ y recorrer cada pdf
+    date = datetime.now().strftime("%Y%m%d %H%M%S")
 
     for file in os.listdir("memorias/"):
         texto = extraer_texto_pdf("memorias/" + file)
@@ -130,7 +156,7 @@ def main():
         articulos = post_procesar_articulos(articulos)
 
         nombre_archivo = file.strip().replace(".pdf", "")
-        nombre_archivo = f"articulos_{nombre_archivo}.json"
+        nombre_archivo = f"procesados/{date}/articulos_{nombre_archivo}.json"
 
         guardar_json(nombre_archivo, articulos)
 

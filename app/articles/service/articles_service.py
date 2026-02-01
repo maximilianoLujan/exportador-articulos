@@ -5,9 +5,21 @@ from app.articles.utils.postprocessor import postprocess_articles
 
 
 class ArticlesService:
-    def read_articles(self, raw_text: str) -> ArticleResponseModel:
+    def extract_raw_articles(self, raw_text: str) -> list[str]:
         articles = extract_articles(raw_text)
-        articles = postprocess_articles(articles)
-        parsed_articles = [parse_article(article) for article in articles]
+        return postprocess_articles(articles)
+
+    def read_articles(self, raw_text: str) -> ArticleResponseModel:
+        articles = self.extract_raw_articles(raw_text)
+
+        parsed_articles: list[dict] = []
+        for article in articles:
+            try:
+                parsed_articles.append(parse_article(article))
+            except ValueError:
+                # Si un artículo no se puede parsear, no abortamos todo el proceso.
+                # Queda registrado en BBDD durante la importación.
+                continue
+
         articles_count = len(parsed_articles)
         return ArticleResponseModel(articles=parsed_articles, count=articles_count)

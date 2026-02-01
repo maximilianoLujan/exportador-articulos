@@ -2,7 +2,7 @@ from app.articles.utils.block_finder import find_article_block
 from app.articles.utils.clean_noise import clean_article_noise
 from app.articles.utils.issn_splitter import ISSN_PATTERN, split_by_issn
 from app.articles.utils.page_splitter import split_by_pages
-from app.text_cleaning import clean_text
+from app.importer.utils.text_cleaning import clean_text
 
 
 def extract_articles(raw_text: str) -> list[str]:

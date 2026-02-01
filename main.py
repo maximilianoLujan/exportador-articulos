@@ -1,34 +1,12 @@
-import os
-from datetime import datetime
+from fastapi import FastAPI
 
-from app.articles.extractor import extract_articles
-from app.articles.postprocessor import postprocess_articles
-from app.pdf_reader import extract_text_from_pdf
-from app.utils import save_json
+from app.importer.router.importer_router import router as importer_router
 
+app = FastAPI()
 
-def main():
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    for filename in os.listdir("memorias"):
-        if not filename.lower().endswith(".pdf"):
-            continue
-
-        pdf_path = os.path.join("memorias", filename)
-        text = extract_text_from_pdf(pdf_path)
-
-        articles = extract_articles(text)
-        articles = postprocess_articles(articles)
-
-        output_path = (
-            f"procesados/{timestamp}/articles_{filename.replace('.pdf', '')}.json"
-        )
-
-        save_json(output_path, articles)
-
-        print(f"✔ {filename}: {len(articles)} articles")
-        print(f"→ {output_path}")
+app.include_router(importer_router)
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/")
+async def root():
+    return {"message": "Nodexl Web App is running"}

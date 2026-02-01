@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from app.db.database import get_db
-from app.db.models import ExtractedItem, ExtractionRun
+from app.runs.service import RunsService, get_runs_service
 
 # "run" = una ejecución del pipeline sobre un documento.
 # En la API lo exponemos como "proceso" por claridad.
@@ -13,12 +10,8 @@ router = APIRouter(prefix="/procesos", tags=["procesos"])
 
 
 @router.get("")
-def list_runs(db: Session = Depends(get_db)):
-    runs = (
-        db.execute(select(ExtractionRun).order_by(ExtractionRun.id.desc()).limit(50))
-        .scalars()
-        .all()
-    )
+def list_runs(service: RunsService = Depends(get_runs_service)):
+    runs = service.list_processes()
     return [
         {
             "id": r.id,
@@ -34,8 +27,8 @@ def list_runs(db: Session = Depends(get_db)):
 
 
 @router.get("/{run_id}")
-def get_run(run_id: int, db: Session = Depends(get_db)):
-    r = db.get(ExtractionRun, run_id)
+def get_run(run_id: int, service: RunsService = Depends(get_runs_service)):
+    r = service.get_process(run_id)
     if r is None:
         raise HTTPException(status_code=404, detail="proceso no encontrado")
     return {
@@ -50,19 +43,11 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{run_id}/items")
-def list_run_items(run_id: int, db: Session = Depends(get_db)):
-    r = db.get(ExtractionRun, run_id)
+def list_run_items(run_id: int, service: RunsService = Depends(get_runs_service)):
+    r = service.get_process(run_id)
     if r is None:
         raise HTTPException(status_code=404, detail="proceso no encontrado")
-    items = (
-        db.execute(
-            select(ExtractedItem)
-            .where(ExtractedItem.run_id == run_id)
-            .order_by(ExtractedItem.id.asc())
-        )
-        .scalars()
-        .all()
-    )
+    items = service.list_items(run_id)
     return [
         {
             "id": i.id,

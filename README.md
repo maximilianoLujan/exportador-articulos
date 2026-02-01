@@ -35,7 +35,8 @@ Ejemplo PostgreSQL:
 
 Para dibujar un grafo estilo NodeXL en el frontend, la API te devuelve **vertices** y **edges** a partir de los ítems parseados de un proceso.
 
-- `GET /grafo/procesos/{id}` → devuelve `{ vertices, edges, summary }`
+- `GET /grafo/procesos` → grafo global (incluye nodos `process`)
+- `GET /grafo/procesos/{id}` → devuelve `{ vertices, edges, summary }` para un proceso
 - `GET /grafo/procesos/{id}/vertices` → sólo vertices
 - `GET /grafo/procesos/{id}/edges` → sólo edges
 

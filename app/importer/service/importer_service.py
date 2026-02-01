@@ -1,16 +1,21 @@
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.articles.model.articles_model import ArticleResponseModel
 from app.articles.service.articles_service import ArticlesService
+from app.db.database import get_db
 from app.db.models import ItemType
+from app.importer.repository.importer_repository import (
+    ImporterRepository,
+    fingerprint_from_fields,
+)
 from app.importer.utils.pdf_reader import extract_text_from_pdf
-from app.persistence.service import PersistenceService, fingerprint_from_fields
 
 
 class ImporterService:
-    def __init__(self, articles_service: ArticlesService, db: Session):
+    def __init__(self, articles_service: ArticlesService, repo: ImporterRepository):
         self.articles_service = articles_service
-        self.db = db
+        self.repo = repo
         self._raw_text: str | None = None
 
     def _get_raw_text(self, file: bytes) -> str:
@@ -27,11 +32,10 @@ class ImporterService:
     ) -> ArticleResponseModel:
         raw_text = self._get_raw_text(file)
 
-        persistence = PersistenceService(self.db)
-        doc = persistence.get_or_create_document(
+        doc = self.repo.get_or_create_document(
             blob=file, filename=filename, content_type=content_type
         )
-        run = persistence.start_run(
+        run = self.repo.start_process(
             document_id=doc.id, pipeline="articles_v1", raw_text=raw_text
         )
 
@@ -50,7 +54,7 @@ class ImporterService:
                         str(data.get("year", "")),
                         (data.get("authors") or [""])[0],
                     )
-                    persistence.add_item(
+                    self.repo.add_item(
                         run_id=run.id,
                         item_type=ItemType.article,
                         raw=raw_article,
@@ -58,7 +62,7 @@ class ImporterService:
                         fingerprint=fp,
                     )
                 except Exception as ex:
-                    persistence.add_item(
+                    self.repo.add_item(
                         run_id=run.id,
                         item_type=ItemType.article,
                         raw=raw_article,
@@ -67,11 +71,11 @@ class ImporterService:
                         parse_error=str(ex),
                     )
 
-            persistence.finish_run_success(run)
-            self.db.commit()
+            self.repo.finish_process_success(run)
+            self.repo.db.commit()
         except Exception as ex:
-            persistence.finish_run_failed(run, str(ex))
-            self.db.commit()
+            self.repo.finish_process_failed(run, str(ex))
+            self.repo.db.commit()
             raise
 
         return ArticleResponseModel(
@@ -79,6 +83,7 @@ class ImporterService:
         )
 
 
-def get_importer_service(db: Session) -> ImporterService:
+def get_importer_service(db: Session = Depends(get_db)) -> ImporterService:
     articles_service = ArticlesService()
-    return ImporterService(articles_service, db)
+    repo = ImporterRepository(db)
+    return ImporterService(articles_service, repo)

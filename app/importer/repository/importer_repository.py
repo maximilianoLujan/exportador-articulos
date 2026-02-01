@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,17 +14,13 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def fingerprint_from_fields(*parts: str) -> str:
-    normalized = "|".join(p.strip().lower() for p in parts if p is not None)
+    normalized = "|".join((p or "").strip().lower() for p in parts)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-@dataclass(frozen=True)
-class PersistedRun:
-    document_id: int
-    run_id: int
+class ImporterRepository:
+    """Acceso a datos para la importación (documentos, procesos y items)."""
 
-
-class PersistenceService:
     def __init__(self, db: Session):
         self.db = db
 
@@ -50,7 +45,7 @@ class PersistenceService:
         self.db.flush()
         return doc
 
-    def start_run(
+    def start_process(
         self, *, document_id: int, pipeline: str, raw_text: str | None
     ) -> ExtractionRun:
         run = ExtractionRun(
@@ -64,12 +59,12 @@ class PersistenceService:
         self.db.flush()
         return run
 
-    def finish_run_success(self, run: ExtractionRun) -> None:
+    def finish_process_success(self, run: ExtractionRun) -> None:
         run.status = RunStatus.succeeded
         run.finished_at = dt.datetime.now(dt.UTC)
         self.db.add(run)
 
-    def finish_run_failed(self, run: ExtractionRun, error: str) -> None:
+    def finish_process_failed(self, run: ExtractionRun, error: str) -> None:
         run.status = RunStatus.failed
         run.error = error
         run.finished_at = dt.datetime.now(dt.UTC)

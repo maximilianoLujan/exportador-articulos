@@ -62,6 +62,27 @@ def _add_vertex(vertices_by_id: dict[str, dict], vertex: dict) -> None:
         vertices_by_id[vid] = vertex
 
 
+def _category_vertex(*, category: str) -> dict:
+    cid = _stable_id("category", (category or "").strip().lower())
+    return {
+        "id": cid,
+        "type": "category",
+        "label": category,
+    }
+
+
+def _category_edge(
+    *, proceso_id: int, item: ExtractedItem, article_id: str, category_id: str
+) -> dict:
+    return {
+        "source": article_id,
+        "target": category_id,
+        "type": "has_category",
+        "source_item_id": item.id,
+        "source_proceso_id": proceso_id,
+    }
+
+
 def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, year):
     pub_key = item.fingerprint or f"{title}|{year}"
     article_id = _stable_id("pub", pub_key)
@@ -147,6 +168,19 @@ def _iter_graph_elements(
             year=year,
         )
         _add_vertex(vertices_by_id, pub_vertex)
+
+        category = pub_vertex.get("category")
+        if category:
+            cat_vertex = _category_vertex(category=category)
+            _add_vertex(vertices_by_id, cat_vertex)
+            edges.append(
+                _category_edge(
+                    proceso_id=proceso_id,
+                    item=item,
+                    article_id=article_id,
+                    category_id=cat_vertex["id"],
+                )
+            )
 
         author_vertices, author_edges = _author_vertices_and_edges(
             proceso_id=proceso_id,

@@ -7,16 +7,53 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.models import ExtractedItem
+from app.importer.utils.name_matching import normalize as _normalize_name
+from app.importer.utils.name_matching import same_person, split_name
 from app.runs.repository import RunsRepository
-
-
-def _norm(s: str) -> str:
-    return " ".join((s or "").strip().split()).lower()
 
 
 def _stable_id(prefix: str, value: str) -> str:
     digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
     return f"{prefix}:{digest}"
+
+
+def _person_key(name: str) -> str:
+    last, first = split_name(name)
+    if last and first:
+        base = f"{last},{first}"
+    else:
+        base = last or (name or "")
+    return _normalize_name(base).lower()
+
+
+class _PersonResolver:
+    def __init__(self):
+        self._entries: list[dict[str, str]] = []
+        self._by_last_initial: dict[str, list[dict[str, str]]] = {}
+
+    def _bucket(self, name: str) -> str:
+        last, _ = split_name(name)
+        base = (last or _normalize_name(name)).strip()
+        return (base[:1] or "?").lower()
+
+    def resolve(self, raw_name: str) -> tuple[str, str]:
+        raw = (raw_name or "").strip()
+        if not raw:
+            return "", ""
+
+        bucket = self._bucket(raw)
+        candidates = self._by_last_initial.get(bucket, [])
+
+        for entry in candidates:
+            if same_person(raw, entry["repr"]):
+                return entry["id"], entry["label"]
+
+        # No match found: create a new deterministic-ish id based on parsed key.
+        pid = _stable_id("person", _person_key(raw))
+        entry = {"id": pid, "repr": raw, "label": raw}
+        self._entries.append(entry)
+        self._by_last_initial.setdefault(bucket, []).append(entry)
+        return pid, raw
 
 
 def _add_vertex(vertices_by_id: dict[str, dict], vertex: dict) -> None:
@@ -39,7 +76,13 @@ def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, yea
 
 
 def _author_vertices_and_edges(
-    *, proceso_id: int, item: ExtractedItem, article_id: str, authors: list, year
+    *,
+    proceso_id: int,
+    item: ExtractedItem,
+    article_id: str,
+    authors: list,
+    year,
+    person_resolver: _PersonResolver,
 ):
     vertices: list[dict] = []
     edges: list[dict] = []
@@ -47,8 +90,12 @@ def _author_vertices_and_edges(
         a = (author or "").strip()
         if not a:
             continue
-        person_id = _stable_id("person", _norm(a))
-        vertices.append({"id": person_id, "type": "person", "label": a})
+
+        person_id, label = person_resolver.resolve(a)
+        if not person_id:
+            continue
+
+        vertices.append({"id": person_id, "type": "person", "label": label})
         edges.append(
             {
                 "source": person_id,
@@ -63,9 +110,17 @@ def _author_vertices_and_edges(
     return vertices, edges
 
 
-def _iter_graph_elements(proceso_id: int, items: list[ExtractedItem]):
+def _iter_graph_elements(
+    proceso_id: int,
+    items: list[ExtractedItem],
+    *,
+    person_resolver: _PersonResolver | None = None,
+):
     vertices_by_id: dict[str, dict] = {}
     edges: list[dict] = []
+
+    if person_resolver is None:
+        person_resolver = _PersonResolver()
 
     for item in items:
         if item.parse_error:
@@ -93,6 +148,7 @@ def _iter_graph_elements(proceso_id: int, items: list[ExtractedItem]):
             article_id=article_id,
             authors=authors,
             year=year,
+            person_resolver=person_resolver,
         )
         for v in author_vertices:
             _add_vertex(vertices_by_id, v)
@@ -131,37 +187,19 @@ class GraphService:
         vertices_by_id: dict[str, dict] = {}
         edges: list[dict] = []
 
+        person_resolver = _PersonResolver()
+
         # Nodo por proceso + grafo de sus items.
         for proceso in procesos:
-            # proceso_vertex_id = f"process:{proceso.id}"
-            # if proceso_vertex_id not in vertices_by_id:
-            #     vertices_by_id[proceso_vertex_id] = {
-            #         "id": proceso_vertex_id,
-            #         "type": "process",
-            #         "label": f"Proceso {proceso.id}",
-            #         "pipeline": proceso.pipeline,
-            #         "status": proceso.status,
-            #         "document_id": proceso.document_id,
-            #     }
-
             items = self.runs_repo.list_items(proceso.id)
-            v, e = _iter_graph_elements(proceso.id, items)
+            v, e = _iter_graph_elements(
+                proceso.id, items, person_resolver=person_resolver
+            )
 
             for vertex in v:
                 vid = vertex["id"]
                 if vid not in vertices_by_id:
                     vertices_by_id[vid] = vertex
-
-                # Relación: proceso contiene publicación
-                # if vertex.get("type") == "publication":
-                #     edges.append(
-                #         {
-                #             "source": proceso_vertex_id,
-                #             "target": vid,
-                #             "type": "contains",
-                #             "source_proceso_id": proceso.id,
-                #         }
-                #     )
 
             edges.extend(e)
 

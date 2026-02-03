@@ -53,3 +53,21 @@ El frontend normalmente:
 1. llama a `GET /procesos` para elegir un proceso
 2. llama a `GET /grafo/procesos/{id}`
 3. pinta `vertices` y `edges` en tu librería (Cytoscape, vis-network, d3, etc.)
+
+## Clasificación de artículos
+
+La app intenta asignar una categoría por artículo:
+
+- `Articulos Congresos Internacionales`
+- `Articulos Congresos Nacionales`
+- `Articulos Revistas Internacionales`
+- `Articulos Revistas Nacionales`
+
+Si el PDF trae encabezados de sección, se usan como fuente principal. Si no, se infiere con heurísticas:
+
+- **Revistas**: presencia de `ISSN`/`vol.` en el texto del ítem.
+- **Nacional/Internacional**: patrón `LUGAR: EDITORIAL, AÑO` (ej. `AMSTERDAM: ELSEVIER..., 2018`).
+
+En este proyecto, **"nacional" = Argentina** (sin usar APIs externas).
+
+La categoría queda guardada en `data.category` de cada ítem y también aparece en el vertex `publication` del grafo.

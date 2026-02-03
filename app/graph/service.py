@@ -65,11 +65,17 @@ def _add_vertex(vertices_by_id: dict[str, dict], vertex: dict) -> None:
 def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, year):
     pub_key = item.fingerprint or f"{title}|{year}"
     article_id = _stable_id("pub", pub_key)
+    category = None
+    try:
+        category = (item.data or {}).get("category")
+    except Exception:
+        category = None
     return article_id, {
         "id": article_id,
         "type": "publication",
         "label": title,
         "year": year,
+        "category": category,
         "source_item_id": item.id,
         "source_proceso_id": proceso_id,
     }

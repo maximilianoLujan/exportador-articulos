@@ -42,12 +42,24 @@ class ImporterService:
         parsed_articles: list[dict] = []
 
         try:
-            raw_articles = self.articles_service.extract_raw_articles(raw_text)
-            for raw_article in raw_articles:
+            raw_articles = self.articles_service.extract_raw_articles_with_category(
+                raw_text
+            )
+            for raw_article, category in raw_articles:
                 try:
                     from app.articles.utils.parse import parse_article
+                    from app.articles.utils.section_splitter import (
+                        infer_article_category,
+                    )
 
                     data = parse_article(raw_article)
+                    final_category = infer_article_category(
+                        article_text=raw_article,
+                        parsed=data,
+                        heading_category=category,
+                    )
+                    if final_category is not None:
+                        data["category"] = final_category
                     parsed_articles.append(data)
                     fp = fingerprint_from_fields(
                         data.get("title", ""),
@@ -66,7 +78,7 @@ class ImporterService:
                         run_id=run.id,
                         item_type=ItemType.article,
                         raw=raw_article,
-                        data={},
+                        data={"category": category} if category is not None else {},
                         fingerprint=None,
                         parse_error=str(ex),
                     )

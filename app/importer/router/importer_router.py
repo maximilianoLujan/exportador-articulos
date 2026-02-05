@@ -1,15 +1,20 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+import os
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from app.articles.model.articles_model import ArticleResponseModel
 from app.importer.service.importer_service import ImporterService, get_importer_service
+from app.limiter import limiter
 
 router = APIRouter(prefix="/import", tags=["importer"])
 
 MAX_PDF_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
-@router.post("/pdf")
+@router.post("/pdf", response_model_exclude_none=True)
+@limiter.limit(os.getenv("RATE_LIMIT_IMPORT_PDF", "5/minute"))
 async def import_articles(
+    request: Request,
     file: UploadFile = File(...),
     importer_service: ImporterService = Depends(get_importer_service),
 ) -> ArticleResponseModel:

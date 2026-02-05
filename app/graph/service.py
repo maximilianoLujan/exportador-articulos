@@ -78,8 +78,6 @@ def _category_edge(
         "source": article_id,
         "target": category_id,
         "type": "has_category",
-        "source_item_id": item.id,
-        "source_proceso_id": proceso_id,
     }
 
 
@@ -128,10 +126,6 @@ def _author_vertices_and_edges(
                 "source": person_id,
                 "target": article_id,
                 "type": "authored",
-                "ord": idx + 1,
-                "year": year,
-                "source_item_id": item.id,
-                "source_proceso_id": proceso_id,
             }
         )
     return vertices, edges

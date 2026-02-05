@@ -8,5 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Dev files
 procesados/
 *.db
+test*.py
+*.txt

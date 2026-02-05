@@ -71,11 +71,9 @@ def _category_vertex(*, category: str) -> dict:
     }
 
 
-def _category_edge(
-    *, proceso_id: int, item: ExtractedItem, article_id: str, category_id: str
-) -> dict:
+def _category_edge(*, publication_id: str, category_id: str) -> dict:
     return {
-        "source": article_id,
+        "source": publication_id,
         "target": category_id,
         "type": "has_category",
     }
@@ -83,15 +81,17 @@ def _category_edge(
 
 def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, year):
     pub_key = item.fingerprint or f"{title}|{year}"
-    article_id = _stable_id("pub", pub_key)
+    publication_id = _stable_id("pub", pub_key)
+    item_type = getattr(item.item_type, "value", item.item_type)
     category = None
     try:
         category = (item.data or {}).get("category")
     except Exception:
         category = None
-    return article_id, {
-        "id": article_id,
+    return publication_id, {
+        "id": publication_id,
         "type": "publication",
+        "publication_type": item_type,
         "label": title,
         "year": year,
         "category": category,
@@ -102,11 +102,8 @@ def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, yea
 
 def _author_vertices_and_edges(
     *,
-    proceso_id: int,
-    item: ExtractedItem,
-    article_id: str,
+    publication_id: str,
     authors: list,
-    year,
     person_resolver: _PersonResolver,
 ):
     vertices: list[dict] = []
@@ -124,7 +121,7 @@ def _author_vertices_and_edges(
         edges.append(
             {
                 "source": person_id,
-                "target": article_id,
+                "target": publication_id,
                 "type": "authored",
             }
         )
@@ -155,7 +152,7 @@ def _iter_graph_elements(
         if not title or not authors:
             continue
 
-        article_id, pub_vertex = _publication_vertex(
+        publication_id, pub_vertex = _publication_vertex(
             proceso_id=proceso_id,
             item=item,
             title=title,
@@ -169,19 +166,14 @@ def _iter_graph_elements(
             _add_vertex(vertices_by_id, cat_vertex)
             edges.append(
                 _category_edge(
-                    proceso_id=proceso_id,
-                    item=item,
-                    article_id=article_id,
+                    publication_id=publication_id,
                     category_id=cat_vertex["id"],
                 )
             )
 
         author_vertices, author_edges = _author_vertices_and_edges(
-            proceso_id=proceso_id,
-            item=item,
-            article_id=article_id,
+            publication_id=publication_id,
             authors=authors,
-            year=year,
             person_resolver=person_resolver,
         )
         for v in author_vertices:

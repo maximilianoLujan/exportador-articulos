@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# VCS / editor
+.git/
+.gitignore
+.vscode/
+
+# Local artifacts
+*.log
+*.sqlite
+*.db
+
+# Project data/output folders (keeps image small)
+memorias/
+procesados/
+
+# Docker
+Dockerfile
+.dockerignore

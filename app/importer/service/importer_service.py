@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.articles.service.articles_service import ArticlesService
 from app.books.service.books_service import BooksService
+from app.book_parts.service.book_parts_service import BookPartsService
 from app.db.database import get_db
 from app.db.models import ItemType
 from app.importer.model.importer_model import (
     ArticlesModel,
     BooksModel,
+    BookPartsModel,
     ImporterResponseModel,
     SummaryModel,
 )
@@ -23,10 +25,12 @@ class ImporterService:
         self,
         articles_service: ArticlesService,
         books_service: BooksService,
+        book_parts_service: BookPartsService,
         repo: ImporterRepository,
     ):
         self.articles_service = articles_service
         self.books_service = books_service
+        self.book_parts_service = book_parts_service
         self.repo = repo
         self._raw_text: str | None = None
 
@@ -53,6 +57,7 @@ class ImporterService:
 
         parsed_articles: list[dict] = []
         parsed_books: list[dict] = []
+        parsed_book_parts: list[dict] = []
 
         try:
             raw_articles = self.articles_service.extract_raw_articles_with_category(
@@ -125,6 +130,35 @@ class ImporterService:
                         parse_error=str(ex),
                     )
 
+            raw_book_parts = self.book_parts_service.extract_raw_book_parts(raw_text)
+            for raw_book_part in raw_book_parts:
+                try:
+                    from app.book_parts.utils.parse import parse_book_parts
+
+                    data = parse_book_parts(raw_book_part)
+                    parsed_book_parts.append(data)
+                    fp = fingerprint_from_fields(
+                        data.get("title", ""),
+                        str(data.get("year", "")),
+                        (data.get("authors") or [""])[0],
+                    )
+                    self.repo.add_item(
+                        run_id=run.id,
+                        item_type=ItemType.book_parts,
+                        raw=raw_book_part,
+                        data=data,
+                        fingerprint=fp,
+                    )
+                except Exception as ex:
+                    self.repo.add_item(
+                        run_id=run.id,
+                        item_type=ItemType.book_parts,
+                        raw=raw_book_part,
+                        data={},
+                        fingerprint=None,
+                        parse_error=str(ex),
+                    )
+
             self.repo.finish_process_success(run)
             self.repo.db.commit()
         except Exception as ex:
@@ -138,6 +172,7 @@ class ImporterService:
                     items=parsed_articles, count=len(parsed_articles)
                 ),
                 books=BooksModel(items=parsed_books, count=len(parsed_books)),
+                book_parts=BookPartsModel(items=parsed_book_parts, count=len(parsed_book_parts)),
             )
         )
 
@@ -145,5 +180,6 @@ class ImporterService:
 def get_importer_service(db: Session = Depends(get_db)) -> ImporterService:
     articles_service = ArticlesService()
     books_service = BooksService()
+    book_parts_service = BookPartsService()
     repo = ImporterRepository(db)
-    return ImporterService(articles_service, books_service, repo)
+    return ImporterService(articles_service, books_service, book_parts_service, repo)

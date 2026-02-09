@@ -83,7 +83,7 @@ class ExtractionRun(Base):
 class ItemType(str, enum.Enum):
     article = "article"
     book = "book"
-    book_part = "book_part"
+    book_parts = "book_parts"
     unknown = "unknown"
 
 

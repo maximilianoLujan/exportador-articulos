@@ -10,10 +10,14 @@ class BooksModel(BaseModel):
     items: list[dict]
     count: int | None = None
 
+class BookPartsModel(BaseModel):
+    items: list[dict]
+    count: int | None = None
 
 class ImporterResponseModel(BaseModel):
     articles: ArticlesModel
     books: BooksModel
+    book_parts: BookPartsModel
 
 
 class SummaryModel(BaseModel):

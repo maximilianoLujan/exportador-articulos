@@ -39,6 +39,8 @@ Para dibujar un grafo estilo NodeXL en el frontend, la API te devuelve **vertice
 - `GET /grafo/procesos/{id}` → devuelve `{ vertices, edges, summary }` para un proceso
 - `GET /grafo/procesos/{id}/vertices` → sólo vertices
 - `GET /grafo/procesos/{id}/edges` → sólo edges
+- `GET /grafo/procesos/{id}/metricas` → métricas estándar (centralidades, clustering, k-core, HITS, Louvain, etc.)
+- `GET /grafo/metricas` → métricas del grafo global (desde BBDD, usando `limit`)
 
 Formato:
 

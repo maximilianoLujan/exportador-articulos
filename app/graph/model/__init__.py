@@ -1,5 +1,7 @@
 from .graph_models import (
     EdgeModel,
+    GraphMetricsResponseModel,
+    GraphPayloadModel,
     GraphResponseModel,
     ProcessInfoModel,
     SummaryModel,
@@ -8,6 +10,8 @@ from .graph_models import (
 
 __all__ = [
     "EdgeModel",
+    "GraphMetricsResponseModel",
+    "GraphPayloadModel",
     "GraphResponseModel",
     "ProcessInfoModel",
     "SummaryModel",

@@ -2,14 +2,14 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.articles.service.articles_service import ArticlesService
-from app.books.service.books_service import BooksService
 from app.book_parts.service.book_parts_service import BookPartsService
+from app.books.service.books_service import BooksService
 from app.db.database import get_db
 from app.db.models import ItemType
 from app.importer.model.importer_model import (
     ArticlesModel,
-    BooksModel,
     BookPartsModel,
+    BooksModel,
     ImporterResponseModel,
     SummaryModel,
 )
@@ -107,6 +107,7 @@ class ImporterService:
                     from app.books.utils.parse import parse_book
 
                     data = parse_book(raw_book)
+                    data["category"] = "Libro"
                     parsed_books.append(data)
                     fp = fingerprint_from_fields(
                         data.get("title", ""),
@@ -136,6 +137,7 @@ class ImporterService:
                     from app.book_parts.utils.parse import parse_book_parts
 
                     data = parse_book_parts(raw_book_part)
+                    data["category"] = "Parte de libro"
                     parsed_book_parts.append(data)
                     fp = fingerprint_from_fields(
                         data.get("title", ""),
@@ -172,7 +174,9 @@ class ImporterService:
                     items=parsed_articles, count=len(parsed_articles)
                 ),
                 books=BooksModel(items=parsed_books, count=len(parsed_books)),
-                book_parts=BookPartsModel(items=parsed_book_parts, count=len(parsed_book_parts)),
+                book_parts=BookPartsModel(
+                    items=parsed_book_parts, count=len(parsed_book_parts)
+                ),
             )
         )
 

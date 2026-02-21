@@ -8,6 +8,7 @@ from app.graph.router import router as graph_router
 from app.importer.router.importer_router import router as importer_router
 from app.limiter import limiter
 from app.runs.router import router as runs_router
+from app.memories.router import router as memories_router
 
 app = FastAPI()
 
@@ -18,6 +19,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.include_router(importer_router)
 app.include_router(runs_router)
 app.include_router(graph_router)
+app.include_router(memories_router)
 
 
 @app.on_event("startup")

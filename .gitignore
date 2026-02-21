@@ -14,3 +14,6 @@ procesados/
 *.db
 test*.py
 *.txt
+
+.env
+/pyproject.toml

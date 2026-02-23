@@ -39,6 +39,24 @@ Para dibujar un grafo estilo NodeXL en el frontend, la API te devuelve **vertice
 - `GET /grafo/procesos/{id}` → devuelve `{ vertices, edges, summary }` para un proceso
 - `GET /grafo/procesos/{id}/vertices` → sólo vertices
 - `GET /grafo/procesos/{id}/edges` → sólo edges
+- `GET /grafo/personas` → catálogo de personas (autores) deduplicadas desde la BBDD
+
+Filtros (opcionales) por query params (se pueden combinar):
+
+- `anio`: filtra publicaciones por año exacto. Se puede repetir (ej. `anio=2019&anio=2020`)
+- `persona`: filtra publicaciones donde algún autor matchee la persona (heurística/fuzzy). Se puede repetir
+- `categoria`: filtra publicaciones por categoría exacta (case-insensitive)
+- `solo_persona`: si `true`, no incluye coautores (solo las personas filtradas)
+
+Ejemplos:
+
+- `GET /grafo/procesos/12?anio=2019`
+- `GET /grafo/procesos/12?anio=2019&anio=2020`
+- `GET /grafo/procesos/12?persona=Gustavo%20Illescas`
+- `GET /grafo/procesos/12?persona=Gustavo%20Illescas&persona=Juan%20Perez`
+- `GET /grafo/procesos/12?persona=Gustavo%20Illescas&solo_persona=true`
+- `GET /grafo/procesos/12?categoria=Articulos%20Revistas%20Internacionales`
+- `GET /grafo/procesos?limit=50&anio=2020&categoria=Articulos%20Congresos%20Nacionales`
 
 Formato:
 

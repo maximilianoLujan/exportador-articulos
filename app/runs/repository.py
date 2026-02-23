@@ -34,3 +34,10 @@ class RunsRepository:
             .scalars()
             .all()
         )
+
+    def list_all_items(self) -> list[ExtractedItem]:
+        return (
+            self.db.execute(select(ExtractedItem).order_by(ExtractedItem.id.asc()))
+            .scalars()
+            .all()
+        )

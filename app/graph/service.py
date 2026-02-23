@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -100,17 +101,166 @@ def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, yea
     }
 
 
+def _parse_year(value) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        try:
+            return int(value)
+        except Exception:
+            return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # accept common forms like "2019", "(2019)", "2019." etc.
+    m = re.search(r"\b(19\d{2}|20\d{2})\b", text)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except Exception:
+        return None
+
+
+def _norm_category(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _item_matches_filters(
+    *,
+    item: ExtractedItem,
+    anio: list[int] | None,
+    persona: list[str] | None,
+    categoria: str | None,
+) -> bool:
+    data = item.data or {}
+
+    if anio:
+        item_year = _parse_year(data.get("year"))
+        if item_year not in set(anio):
+            return False
+
+    if categoria:
+        item_category = _norm_category(data.get("category"))
+        if item_category != _norm_category(categoria):
+            return False
+
+    if persona:
+        authors = data.get("authors") or []
+        personas = [p for p in persona if (p or "").strip()]
+        if not personas:
+            return True
+
+        # include item if any provided person matches any author
+        if not any(
+            same_person(p, a)
+            for p in personas
+            for a in authors
+            if (a or "").strip()
+        ):
+            return False
+
+    return True
+
+
+def _extract_publication_fields(item: ExtractedItem) -> tuple[str, int | None, list]:
+    data = item.data or {}
+    title = (data.get("title") or "").strip()
+    year = data.get("year")
+    authors = data.get("authors") or []
+    return title, _parse_year(year), authors
+
+
+def _graph_elements_for_item(
+    *,
+    proceso_id: int,
+    item: ExtractedItem,
+    person_resolver: _PersonResolver,
+    only_personas: list[str] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    data = item.data or {}
+    title = (data.get("title") or "").strip()
+    year_raw = data.get("year")
+    authors = data.get("authors") or []
+
+    publication_id, pub_vertex = _publication_vertex(
+        proceso_id=proceso_id,
+        item=item,
+        title=title,
+        year=year_raw,
+    )
+
+    vertices: list[dict] = [pub_vertex]
+    edges: list[dict] = []
+
+    category = pub_vertex.get("category")
+    if category:
+        cat_vertex = _category_vertex(category=category)
+        vertices.append(cat_vertex)
+        edges.append(
+            _category_edge(
+                publication_id=publication_id,
+                category_id=cat_vertex["id"],
+            )
+        )
+
+    author_vertices, author_edges = _author_vertices_and_edges(
+        publication_id=publication_id,
+        authors=authors,
+        person_resolver=person_resolver,
+        only_personas=only_personas,
+    )
+    vertices.extend(author_vertices)
+    edges.extend(author_edges)
+
+    return vertices, edges
+
+
+def _should_include_item(
+    *,
+    item: ExtractedItem,
+    anio: list[int] | None,
+    persona: list[str] | None,
+    categoria: str | None,
+) -> bool:
+    if item.parse_error:
+        return False
+
+    if not _item_matches_filters(
+        item=item,
+        anio=anio,
+        persona=persona,
+        categoria=categoria,
+    ):
+        return False
+
+    title, _, authors = _extract_publication_fields(item)
+    if not title or not authors:
+        return False
+
+    return True
+
+
 def _author_vertices_and_edges(
     *,
     publication_id: str,
     authors: list,
     person_resolver: _PersonResolver,
+    only_personas: list[str] | None = None,
 ):
     vertices: list[dict] = []
     edges: list[dict] = []
+    personas = [p for p in (only_personas or []) if (p or "").strip()]
     for idx, author in enumerate(authors):
         a = (author or "").strip()
         if not a:
+            continue
+
+        if personas and not any(same_person(p, a) for p in personas):
             continue
 
         person_id, label = person_resolver.resolve(a)
@@ -133,6 +283,10 @@ def _iter_graph_elements(
     items: list[ExtractedItem],
     *,
     person_resolver: _PersonResolver | None = None,
+    anio: list[int] | None = None,
+    persona: list[str] | None = None,
+    categoria: str | None = None,
+    solo_persona: bool = False,
 ):
     vertices_by_id: dict[str, dict] = {}
     edges: list[dict] = []
@@ -141,44 +295,25 @@ def _iter_graph_elements(
         person_resolver = _PersonResolver()
 
     for item in items:
-        if item.parse_error:
+        if not _should_include_item(
+            item=item,
+            anio=anio,
+            persona=persona,
+            categoria=categoria,
+        ):
             continue
 
-        data = item.data or {}
-        title = (data.get("title") or "").strip()
-        year = data.get("year")
-        authors = data.get("authors") or []
+        only_personas = persona if (solo_persona and persona) else None
 
-        if not title or not authors:
-            continue
-
-        publication_id, pub_vertex = _publication_vertex(
+        item_vertices, item_edges = _graph_elements_for_item(
             proceso_id=proceso_id,
             item=item,
-            title=title,
-            year=year,
-        )
-        _add_vertex(vertices_by_id, pub_vertex)
-
-        category = pub_vertex.get("category")
-        if category:
-            cat_vertex = _category_vertex(category=category)
-            _add_vertex(vertices_by_id, cat_vertex)
-            edges.append(
-                _category_edge(
-                    publication_id=publication_id,
-                    category_id=cat_vertex["id"],
-                )
-            )
-
-        author_vertices, author_edges = _author_vertices_and_edges(
-            publication_id=publication_id,
-            authors=authors,
             person_resolver=person_resolver,
+            only_personas=only_personas,
         )
-        for v in author_vertices:
+        for v in item_vertices:
             _add_vertex(vertices_by_id, v)
-        edges.extend(author_edges)
+        edges.extend(item_edges)
 
     return list(vertices_by_id.values()), edges
 
@@ -187,13 +322,54 @@ class GraphService:
     def __init__(self, runs_repo: RunsRepository):
         self.runs_repo = runs_repo
 
-    def graph_for_process(self, proceso_id: int):
+    def list_persons(self) -> list[dict]:
+        items = self.runs_repo.list_all_items()
+
+        person_resolver = _PersonResolver()
+        vertices_by_id: dict[str, dict] = {}
+
+        for item in items:
+            if item.parse_error:
+                continue
+
+            data = item.data or {}
+            authors = data.get("authors") or []
+            for author in authors:
+                raw = (author or "").strip()
+                if not raw:
+                    continue
+                pid, label = person_resolver.resolve(raw)
+                if not pid:
+                    continue
+                _add_vertex(vertices_by_id, {"id": pid, "type": "person", "label": label})
+
+        # stable order for frontend
+        persons = list(vertices_by_id.values())
+        persons.sort(key=lambda v: (v.get("label") or "").lower())
+        return persons
+
+    def graph_for_process(
+        self,
+        proceso_id: int,
+        *,
+        anio: list[int] | None = None,
+        persona: list[str] | None = None,
+        categoria: str | None = None,
+        solo_persona: bool = False,
+    ):
         proceso = self.runs_repo.get_process(proceso_id)
         if proceso is None:
             return None
 
         items = self.runs_repo.list_items(proceso_id)
-        vertices, edges = _iter_graph_elements(proceso_id, items)
+        vertices, edges = _iter_graph_elements(
+            proceso_id,
+            items,
+            anio=anio,
+            persona=persona,
+            categoria=categoria,
+            solo_persona=solo_persona,
+        )
 
         return {
             "proceso": {
@@ -207,7 +383,15 @@ class GraphService:
             "edges": edges,
         }
 
-    def graph_for_all_processes(self, limit: int = 50):
+    def graph_for_all_processes(
+        self,
+        *,
+        limit: int = 50,
+        anio: list[int] | None = None,
+        persona: list[str] | None = None,
+        categoria: str | None = None,
+        solo_persona: bool = False,
+    ):
         procesos = self.runs_repo.list_processes(limit=limit)
 
         vertices_by_id: dict[str, dict] = {}
@@ -219,7 +403,13 @@ class GraphService:
         for proceso in procesos:
             items = self.runs_repo.list_items(proceso.id)
             v, e = _iter_graph_elements(
-                proceso.id, items, person_resolver=person_resolver
+                proceso.id,
+                items,
+                person_resolver=person_resolver,
+                anio=anio,
+                persona=persona,
+                categoria=categoria,
+                solo_persona=solo_persona,
             )
 
             for vertex in v:

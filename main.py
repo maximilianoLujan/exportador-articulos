@@ -9,6 +9,7 @@ from app.importer.router.importer_router import router as importer_router
 from app.limiter import limiter
 from app.runs.router import router as runs_router
 from app.memories.router import router as memories_router
+from app.categories.router import router as categories_routes
 
 app = FastAPI()
 
@@ -20,6 +21,7 @@ app.include_router(importer_router)
 app.include_router(runs_router)
 app.include_router(graph_router)
 app.include_router(memories_router)
+app.include_router(categories_routes)
 
 
 @app.on_event("startup")

@@ -38,8 +38,7 @@ jobs:
             # build exe
             - name: Build backend exe
               run: |
-                  uv run pyinstaller main.py --onefile --name backend --clean --strip --collect-binaries cryptography
-            # subir artifact
+                  uv run pyinstaller main.py --onedir --name backend --clean
             - name: Upload artifact
               uses: actions/upload-artifact@v4
               with:

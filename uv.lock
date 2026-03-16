@@ -410,7 +410,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.128.0" },
     { name = "pdfplumber", specifier = ">=0.11.8" },
-    { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "pyinstaller", specifier = "==6.19.0" },
     { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "rapidfuzz", specifier = ">=3.14.3" },
     { name = "slowapi", specifier = ">=0.1.9" },

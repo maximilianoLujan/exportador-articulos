@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.128.0",
     "pdfplumber>=0.11.8",
+    "pyinstaller>=6.19.0",
     "python-multipart>=0.0.22",
     "rapidfuzz>=3.14.3",
     "slowapi>=0.1.9",

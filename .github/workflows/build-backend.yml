@@ -1,0 +1,54 @@
+name: Build Backend
+
+on:
+    push:
+        branches:
+            - develop
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout repo
+              uses: actions/checkout@v4
+
+            # Python
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            # instalar uv
+            - name: Install uv
+              run: pip install uv
+
+            # instalar dependencias
+            - name: Install dependencies
+              run: |
+                  uv sync
+
+            # instalar pyinstaller
+            - name: Install PyInstaller
+              run: |
+                  uv add pyinstaller
+
+            # build exe
+            - name: Build backend exe
+              run: |
+                  uv run pyinstaller main.py ^
+                    --onefile ^
+                    --name backend ^
+                    --clean ^
+                    --strip ^
+                    --hidden-import uvicorn ^
+                    --hidden-import uvicorn.logging ^
+                    --hidden-import uvicorn.loops
+
+            # subir artifact
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: backend-exe
+                  path: dist/backend.exe

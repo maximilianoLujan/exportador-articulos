@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import os
+import sys
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 def _default_sqlite_url() -> str:
-    # Stored in project root by default.
-    return "sqlite:///./nodexl.db"
+    if getattr(sys, "frozen", False):
+        # ejecutándose como exe (PyInstaller)
+        base = Path(os.getenv("LOCALAPPDATA", Path.home()))
+        app_dir = base / "nodexlapp"
+    else:
+        # modo desarrollo
+        app_dir = Path(__file__).resolve().parents[3]
+
+    app_dir.mkdir(parents=True, exist_ok=True)
+
+    db_path = app_dir / "nodexl.db"
+    return f"sqlite:///{db_path}"
 
 
 def get_database_url() -> str:

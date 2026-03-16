@@ -37,7 +37,7 @@ jobs:
             # build exe
             - name: Build backend exe
               run: |
-                  uv run pyinstaller main.py --onefile --name backend --clean --strip --hidden-import uvicorn --hidden-import uvicorn.logging --hidden-import uvicorn.loops
+                  uv run pyinstaller main.py --onefile --name backend --clean --strip
 
             # subir artifact
             - name: Upload artifact

@@ -38,8 +38,24 @@ class ProcessInfoModel(BaseModel):
 
 
 class SummaryModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     vertex_count: int
     edge_count: int
+
+    # Totales derivados del grafo
+    publication_count: int | None = None
+    authors_count: int | None = None
+    category_count: int | None = None
+    process_count: int | None = None
+
+    # Atajos (compatibilidad / consumo simple)
+    books_count: int | None = None
+    articles_count: int | None = None
+    book_parts_count: int | None = None
+
+    # Subtipo de artículos (hoy: por categoría detectada en extracción)
+    articles_by_category: dict[str, int] | None = None
 
 
 class GraphResponseModel(BaseModel):

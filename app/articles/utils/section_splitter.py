@@ -189,7 +189,7 @@ def infer_article_category(
     )
 
     if venue is None or scope is None:
-        return None
+        return CAT_REVISTAS_NAC
 
     if venue == "revistas" and scope == "internacional":
         return CAT_REVISTAS_INT
@@ -200,7 +200,7 @@ def infer_article_category(
     if venue == "congresos" and scope == "nacional":
         return CAT_CONGRESOS_NAC
 
-    return None
+    return CAT_REVISTAS_NAC
 
 
 def _strip_accents(text: str) -> str:

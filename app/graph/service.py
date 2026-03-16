@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -157,10 +158,7 @@ def _item_matches_filters(
 
         # include item if any provided person matches any author
         if not any(
-            same_person(p, a)
-            for p in personas
-            for a in authors
-            if (a or "").strip()
+            same_person(p, a) for p in personas for a in authors if (a or "").strip()
         ):
             return False
 
@@ -322,6 +320,62 @@ class GraphService:
     def __init__(self, runs_repo: RunsRepository):
         self.runs_repo = runs_repo
 
+    def _summary_with_counts(
+        self,
+        *,
+        vertices: list[dict],
+        edges: list[dict],
+        process_count: int | None = None,
+    ) -> dict:
+        # Conteos robustos: siempre por id (distinct)
+        publication_type_by_id: dict[str, str] = {}
+        article_category_by_id: dict[str, str] = {}
+        person_ids: set[str] = set()
+        category_ids: set[str] = set()
+
+        for v in vertices:
+            vtype = v.get("type")
+            vid = v.get("id")
+            if not isinstance(vid, str) or not vid:
+                continue
+
+            if vtype == "publication":
+                ptype = v.get("publication_type") or "unknown"
+                publication_type_by_id[vid] = str(ptype)
+                if str(ptype) == "article":
+                    article_category_by_id[vid] = str(
+                        v.get("category") or "sin_categoria"
+                    )
+            elif vtype == "person":
+                person_ids.add(vid)
+            elif vtype == "category":
+                category_ids.add(vid)
+
+        publications_by_type: Counter[str] = Counter(publication_type_by_id.values())
+        articles_by_category: Counter[str] = Counter(article_category_by_id.values())
+
+        publication_count = len(publication_type_by_id)
+        authors_count = len(person_ids)
+        category_count = len(category_ids)
+
+        # Atajos esperados por UI/consumidores
+        books_count = publications_by_type.get("book", 0)
+        articles_count = publications_by_type.get("article", 0)
+        book_parts_count = publications_by_type.get("book_parts", 0)
+
+        return {
+            "vertex_count": len(vertices),
+            "edge_count": len(edges),
+            "publication_count": publication_count,
+            "authors_count": authors_count,
+            "category_count": category_count,
+            "process_count": process_count,
+            "books_count": books_count,
+            "articles_count": articles_count,
+            "book_parts_count": book_parts_count,
+            "articles_by_category": dict(articles_by_category),
+        }
+
     def list_persons(self) -> list[dict]:
         items = self.runs_repo.list_all_items()
 
@@ -341,7 +395,9 @@ class GraphService:
                 pid, label = person_resolver.resolve(raw)
                 if not pid:
                     continue
-                _add_vertex(vertices_by_id, {"id": pid, "type": "person", "label": label})
+                _add_vertex(
+                    vertices_by_id, {"id": pid, "type": "person", "label": label}
+                )
 
         # stable order for frontend
         persons = list(vertices_by_id.values())
@@ -378,7 +434,11 @@ class GraphService:
                 "pipeline": proceso.pipeline,
                 "status": proceso.status,
             },
-            "summary": {"vertex_count": len(vertices), "edge_count": len(edges)},
+            "summary": self._summary_with_counts(
+                vertices=vertices,
+                edges=edges,
+                process_count=1,
+            ),
             "vertices": vertices,
             "edges": edges,
         }
@@ -421,7 +481,11 @@ class GraphService:
 
         vertices = list(vertices_by_id.values())
         return {
-            "summary": {"vertex_count": len(vertices), "edge_count": len(edges)},
+            "summary": self._summary_with_counts(
+                vertices=vertices,
+                edges=edges,
+                process_count=len(procesos),
+            ),
             "vertices": vertices,
             "edges": edges,
         }

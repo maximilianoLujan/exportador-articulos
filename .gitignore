@@ -17,3 +17,5 @@ test*.py
 
 .env
 /pyproject.toml
+
+/venv

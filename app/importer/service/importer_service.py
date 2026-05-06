@@ -6,10 +6,12 @@ from app.book_parts.service.book_parts_service import BookPartsService
 from app.books.service.books_service import BooksService
 from app.db.database import get_db
 from app.db.models import ItemType
+from app.events.service.events_service import EventsService
 from app.importer.model.importer_model import (
     ArticlesModel,
     BookPartsModel,
     BooksModel,
+    EventWorksModel,
     ImporterResponseModel,
     SummaryModel,
 )
@@ -26,11 +28,13 @@ class ImporterService:
         articles_service: ArticlesService,
         books_service: BooksService,
         book_parts_service: BookPartsService,
+        events_service: EventsService,
         repo: ImporterRepository,
     ):
         self.articles_service = articles_service
         self.books_service = books_service
         self.book_parts_service = book_parts_service
+        self.events_service = events_service
         self.repo = repo
         self._raw_text: str | None = None
 
@@ -58,6 +62,7 @@ class ImporterService:
         parsed_articles: list[dict] = []
         parsed_books: list[dict] = []
         parsed_book_parts: list[dict] = []
+        parsed_event_works: list[dict] = []
 
         try:
             raw_articles = self.articles_service.extract_raw_articles_with_category(
@@ -161,6 +166,38 @@ class ImporterService:
                         parse_error=str(ex),
                     )
 
+            raw_event_works = self.events_service.extract_raw_event_works(raw_text)
+            for raw_work in raw_event_works:
+                try:
+                    from app.events.utils.parse import parse_event_work
+
+                    data = parse_event_work(raw_work)
+                    data["category"] = "Trabajo en evento"
+                    data["publication_type"] = "event_work"
+                    parsed_event_works.append(data)
+
+                    fp = fingerprint_from_fields(
+                        data.get("title", ""),
+                        str(data.get("year", "")),
+                        (data.get("authors") or [""])[0],
+                    )
+                    self.repo.add_item(
+                        run_id=run.id,
+                        item_type=ItemType.unknown,
+                        raw=raw_work,
+                        data=data,
+                        fingerprint=fp,
+                    )
+                except Exception as ex:
+                    self.repo.add_item(
+                        run_id=run.id,
+                        item_type=ItemType.unknown,
+                        raw=raw_work,
+                        data={"category": "Trabajo en evento", "publication_type": "event_work"},
+                        fingerprint=None,
+                        parse_error=str(ex),
+                    )
+
             self.repo.finish_process_success(run)
             self.repo.db.commit()
         except Exception as ex:
@@ -177,6 +214,9 @@ class ImporterService:
                 book_parts=BookPartsModel(
                     items=parsed_book_parts, count=len(parsed_book_parts)
                 ),
+                event_works=EventWorksModel(
+                    items=parsed_event_works, count=len(parsed_event_works)
+                ),
             )
         )
 
@@ -185,5 +225,12 @@ def get_importer_service(db: Session = Depends(get_db)) -> ImporterService:
     articles_service = ArticlesService()
     books_service = BooksService()
     book_parts_service = BookPartsService()
+    events_service = EventsService()
     repo = ImporterRepository(db)
-    return ImporterService(articles_service, books_service, book_parts_service, repo)
+    return ImporterService(
+        articles_service,
+        books_service,
+        book_parts_service,
+        events_service,
+        repo,
+    )

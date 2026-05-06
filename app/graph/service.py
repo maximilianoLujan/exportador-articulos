@@ -85,6 +85,13 @@ def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, yea
     pub_key = item.fingerprint or f"{title}|{year}"
     publication_id = _stable_id("pub", pub_key)
     item_type = getattr(item.item_type, "value", item.item_type)
+    publication_type = item_type
+    if str(item_type) == "unknown":
+        try:
+            data = item.data or {}
+            publication_type = data.get("publication_type") or publication_type
+        except Exception:
+            publication_type = item_type
     category = None
     try:
         category = (item.data or {}).get("category")
@@ -93,7 +100,7 @@ def _publication_vertex(*, proceso_id: int, item: ExtractedItem, title: str, yea
     return publication_id, {
         "id": publication_id,
         "type": "publication",
-        "publication_type": item_type,
+        "publication_type": publication_type,
         "label": title,
         "year": year,
         "category": category,
